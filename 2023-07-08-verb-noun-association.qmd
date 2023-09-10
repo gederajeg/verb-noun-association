@@ -1,0 +1,259 @@
+---
+title: "R notebook for \"Do verbs have an inherent association to specific nouns than others? A preliminary experimental study\""
+author:
+  - name:
+      given: I Gede Semara Dharma
+      family: Putra
+    orcid: 0009-0000-6711-0878
+    corresponding: true
+    url: https://figshare.com/authors/I_Gede_Semara_Dharma_Putra/11755628
+    affiliations: Universitas Udayana
+    roles:
+      - conceptualization: lead
+      - investigation: lead
+      - analysis: lead
+      - methodology: lead
+      - writing: lead
+  - name:
+      given: Gede Primahadi Wijaya
+      family: Rajeg
+    orcid: 0000-0002-2047-8621
+    url: https://www.ling-phil.ox.ac.uk/people/gede-rajeg
+    corresponding: false
+    affiliations:
+      - number: 1
+        name: University of Oxford
+      - number: 2
+        name: Universitas Udayana
+date: 2023-07-09
+date-modified: now
+google-scholar: true
+appendix-cite-as: display
+format: 
+  html: 
+    number-sections: true
+---
+
+## Pre-processing {#sec-preprocess}
+
+Preparing the main data from the raw data output of the Gorilla experiment.
+
+```{r}
+#| label: setup
+#| echo: true
+#| eval: false
+
+library(tidyverse)
+library(readxl)
+
+df_raw <- map2(.x = "data/data-raw.xlsx", 
+               .y = 1:17, 
+               ~read_xlsx(path = .x, sheet = .y)) |>
+  map_df(bind_rows)
+
+resp_count <- df_raw |> 
+  filter(`Response Type` == "response") |> 
+  select(`Participant Private ID`, Response, `Spreadsheet: Text`) |> 
+  distinct() |> 
+  count(`Participant Private ID`, Response, `Spreadsheet: Text`) |> 
+  separate(`Spreadsheet: Text`, 
+           into = c("eng_v", "idn_v"), 
+           sep = "\\s\\=\\s", 
+           remove = FALSE) |>
+  mutate(response_ID = str_replace_all(Response, 
+                                       "(^[^0-9]+(?=\\d)|\\.jpe?g$)", 
+                                       "")) |> 
+  filter(Response != "0")
+
+verb_group <- data.frame(idn_v = c("Memberi", "Membuat", "Mencari", 
+                                   "Mendapatkan", "Mengambil"), 
+                         groups = c("E", "B", "C", 
+                                    "D", "A"))
+
+resp_count <- left_join(resp_count, 
+                        verb_group, 
+                        by = join_by(idn_v)) |> 
+  mutate(response_ID = paste(groups, response_ID, sep = "")) |> 
+  rename(participant_ID = `Participant Private ID`,
+         text_stimuli = `Spreadsheet: Text`,
+         response = Response)
+resp_count |> 
+  write_csv("data/data-main.csv")
+```
+
+## Main data {#sec-maindata}
+
+Loading the count data for each participant.
+
+```{r}
+#| label: load-main-data
+#| message: false
+#| warning: false
+#| error: false
+
+library(tidyverse)
+resp_count <- read_csv("data/data-main.csv")
+nouns <- read_csv2("data/noun-codes.csv") |> 
+  rename(response_ID = CODES)
+```
+
+Getting the summarised responses across all participants.
+
+```{r}
+#| label: summarised-responses
+
+resp_count2 <- resp_count |> 
+  group_by(eng_v, groups, response_ID) |> 
+  summarise(n = sum(n), .groups = "drop") |> 
+  arrange(groups) |> 
+  rename(freq = n) |> 
+  left_join(nouns, by = join_by(response_ID))
+resp_count2
+```
+
+## Visualisation of the results {#sec-visualisation}
+
+### TAKE group {#sec-take}
+
+@fig-A-verb-group shows the frequency of nouns with the TAKE verb group.
+
+```{r}
+#| label: fig-A-verb-group
+#| fig-cap: "Distribution of nouns for the \"TAKE\" verb groups"
+#| fig-cap-location: bottom
+df <- resp_count2 |> 
+  filter(groups == "A") |> 
+  mutate(eng_v = fct_relevel(eng_v, c("Take", "Bring", "Collect", "Gather", "Seize", "Fetch", "Hoard")),
+         NOUN = fct_relevel(NOUN, c("log", "wheelbarrow", "hammer", "box"))) 
+cols <- df$COLS
+names(cols) <- df$NOUN
+
+df |> 
+  ggplot(aes(x = eng_v, 
+             y = freq, 
+             fill = NOUN)) + 
+  geom_col(position = "dodge") + 
+  scale_fill_manual(values = cols) +
+  theme_bw() +
+  theme(legend.position = "top") + 
+  labs(y = "Frequency",
+       x = "TAKE verb group",
+       fill = "")
+```
+
+### MAKE group {#sec-make}
+
+@fig-B-verb-group shows the frequency of nouns with the MAKE verb group.
+
+```{r}
+#| label: fig-B-verb-group
+#| fig-cap: "Distribution of nouns for the \"MAKE\" verb groups"
+#| fig-cap-location: bottom
+df <- resp_count2 |> 
+  filter(groups == "B") |> 
+  mutate(eng_v = fct_relevel(eng_v, c("Make", "Create", "Produce", "Design", "Establish", "Construct", "Manufacture")),
+         NOUN = fct_relevel(NOUN, c("carpet", "ornament", "gold bar", "paper airplane"))) 
+cols <- df$COLS
+names(cols) <- df$NOUN
+
+df |> 
+  ggplot(aes(x = eng_v, 
+             y = freq, 
+             fill = NOUN)) + 
+  geom_col(position = "dodge") + 
+  scale_fill_manual(values = cols) +
+  theme_bw() +
+  theme(legend.position = "top") + 
+  labs(y = "Frequency",
+       x = "MAKE verb group",
+       fill = "")
+```
+
+### FIND group
+
+@fig-C-verb-group shows the frequency of nouns with the FIND verb group.
+
+```{r}
+#| label: fig-C-verb-group
+#| fig-cap: "Distribution of nouns for the \"FIND\" verb groups"
+#| fig-cap-location: bottom
+
+df <- resp_count2 |> 
+  filter(groups == "C") |> 
+  mutate(eng_v = fct_relevel(eng_v, c("Find", "Discover", "Search", "Explore", "Investigate", "Locate", "Rummage")),
+         NOUN = fct_relevel(NOUN, c("milk", "items", "puzzle piece", "gold ore"))) 
+cols <- df$COLS
+names(cols) <- df$NOUN
+
+df |> 
+  filter(groups == "C") |> 
+  ggplot(aes(x = eng_v, 
+             y = freq, 
+             fill = NOUN)) + 
+  geom_col(position = "dodge") + 
+  scale_fill_manual(values = cols) +
+  theme_bw() +
+  theme(legend.position = "top") + 
+  labs(y = "Frequency",
+       x = "FIND verb group",
+       fill = "")
+```
+
+### GET group {#sec-get}
+
+@fig-D-verb-group shows the frequency of nouns with the GET verb group.
+
+```{r}
+#| label: fig-D-verb-group
+#| fig-cap: "Distribution of nouns for the \"GET\" verb groups"
+#| fig-cap-location: bottom
+
+df <- resp_count2 |> 
+  filter(groups == "D") |> 
+  mutate(eng_v = fct_relevel(eng_v, c("Get", "Receive", "Earn", "Gain", "Obtain", "Acquire", "Procure")),
+         NOUN = fct_relevel(NOUN, c("money", "medal", "trophy", "television"))) 
+cols <- df$COLS
+names(cols) <- df$NOUN
+
+df |> 
+  ggplot(aes(x = eng_v, 
+             y = freq, 
+             fill = NOUN)) + 
+  geom_col(position = "dodge") + 
+  scale_fill_manual(values = cols) +
+  theme_bw() +
+  theme(legend.position = "top") +
+  labs(y = "Frequency",
+       x = "GET verb group",
+       fill = "")
+```
+
+### GIVE group {#sec-give}
+
+@fig-E-verb-group shows the frequency of nouns with the GIVE verb group.
+
+```{r}
+#| label: fig-E-verb-group
+#| fig-cap: "Distribution of nouns for the \"GIVE\" verb groups"
+#| fig-cap-location: bottom
+
+df <- resp_count2 |> 
+  filter(groups == "E") |> 
+  mutate(eng_v = fct_relevel(eng_v, c("Give", "Provide", "Share", "Present", "Grant", "Donate", "Bestow")),
+         NOUN = fct_relevel(NOUN, c("food", "t-shirt", "gift", "cup"))) 
+cols <- df$COLS
+names(cols) <- df$NOUN
+
+df |>  
+  filter(groups == "E") |> 
+  ggplot(aes(x = eng_v, 
+             y = freq, 
+             fill = NOUN)) + 
+  geom_col(position = "dodge") + 
+  scale_fill_manual(values = cols) +
+  theme_bw() +
+  theme(legend.position = "top") +
+  labs(y = "Frequency",
+       x = "GIVE verb group",
+       fill = "")
+```
